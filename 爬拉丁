@@ -1,0 +1,78 @@
+import requests
+import time
+import json
+from io import BytesIO
+import pymysql
+
+def get_json(headers, session, cookie, page):
+    url_parse = 'https://www.lagou.com/jobs/positionAjax.json?needAddtionalResult=false'  # json
+
+    data = {
+        'first': 'true',
+        'pn': page,
+        'kd': 'java'
+    }
+
+    response = session.post(url_parse, data=data, headers=headers, cookies=cookie)
+    response_json = response.json()
+
+    return response_json
+
+def set_header(headers):
+
+    url_state= 'https://www.lagou.com/jobs/list_java/p-city_252?&cl=false&fromSearch=true&labelWords=&suginput=' #首页
+
+    session = requests.session()  #实例化session 保持会话
+    session.get(url_state, headers=headers) #使用会话请求获取cookie
+    cookie = session.cookies  # 获取cookie
+
+    return [session, cookie]
+
+def get_conn():
+    conn = pymysql.connect(
+        host='localhost',
+        user='root',
+        password='root',
+        db='python',
+        charset='utf8mb4',
+    )
+    return conn
+
+def insert(conn, info):
+    sql = " insert into `boss` (`position_name`, `company_name`, `money`, `experience`) values (%s, %s, %s, %s)"
+
+    # conn.cursor() 连接对象
+    with conn.cursor() as cursor:
+        cursor.execute(sql, info)
+
+    conn.commit()
+
+def main():
+    headers = {
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Referer': 'https://www.lagou.com/jobs/list_java/p-city_252?&cl=false&fromSearch=true&labelWords=&suginput=',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36'
+    }
+
+    conn = get_conn()
+    set_header_list = set_header(headers)
+
+    session = set_header_list[0]
+    cookie = set_header_list[1]
+
+    for page in range(1, 5):
+
+        json = get_json(headers, session, cookie, page)
+
+        for i in range(len(json['content']['positionResult']['result'])) :
+            position = json['content']['positionResult']['result'][i]['positionName']
+            company_name = json['content']['positionResult']['result'][i]['companyFullName']
+            money = json['content']['positionResult']['result'][i]['salary']
+            experience = json['content']['positionResult']['result'][i]['workYear']
+
+            content = ()
+            info = (position, company_name, money, experience)
+            insert(conn, info)
+
+if __name__ == '__main__':
+    main()
